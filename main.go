@@ -65,7 +65,7 @@ var backBaseImg *ebiten.Image
 
 var gameFont font.Face
 
-const startGameText = "Press 'Space' to start\n 'Space Or Mouse Left' to play"
+const startGameText = "Press 'Space' to start\n 'Mouse Left' to play"
 const gameOverText = "             Game Over\n Press 'Space' to restart"
 
 var isGameStart bool
@@ -169,9 +169,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 }
 
-func drawScore(screen *ebiten.Image){
-	text.Draw(screen, "Score: "+fmt.Sprint(score), gameFont, screenWidth -180, 30, color.White)
-}
+
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	return outsideWidth, outsideHeight
@@ -197,14 +195,15 @@ func incremenetScore(){
 	}
 }
 
+// We only need to check the first pipe for collision
+// The bird does not move left/right
 func (g *Game) checkBirdCollision(screen *ebiten.Image){
 	if(checkXCoordPipeBird() && !checkYCoordPipeBird(g.yBird)){
 		setGameOver(screen)
 	}
 }
 
-
-
+// Check if bird x and pipe's x coordinate are matched
 func checkXCoordPipeBird() bool{
 	birdLeft :=  float32(xBird) + birdExtraBuffer
 	birdRight := birdLeft + float32(birdWidth) - 2*birdExtraBuffer
@@ -216,9 +215,8 @@ func checkXCoordPipeBird() bool{
 		(pipeRight >= birdLeft || pipeRight >= birdRight) )
 }
 
-
+// Check if bird y and pipe's y coordinate are matched
 func checkYCoordPipeBird(yBird float32) bool{
-	
 	birdTop := yBird + birdExtraBuffer
 	birdBottom := birdTop + float32(birdHeight) - 2*birdExtraBuffer
 
@@ -228,6 +226,7 @@ func checkYCoordPipeBird(yBird float32) bool{
 	return birdTop >= pipeTop && birdBottom <= pipeBottom
 }
 
+// On game over, remove all control but still draw the current state
 func setGameOver(screen *ebiten.Image){
 	text.Draw(screen, gameOverText, gameFont, 100, screenHeight/2, color.White)
 	gravity = 0
@@ -237,13 +236,16 @@ func setGameOver(screen *ebiten.Image){
 }
 
 func removeAndSpawnPipe(){
+	// If the pipe is off screen, remove that pipe
 	if(pipeCoords[0][0] < -float32(pipeWidth)){
+		
 		// Adding a new Pipe
 		yCoord := randRange(100, screenHeight - pipeGap)
 		xCoord := distBwPipe + pipeCoords[(len(pipeCoords) -1)][0]
 		anotherPipe := [2]float32{xCoord, float32(yCoord)}
 		pipeCoords =  append(pipeCoords, anotherPipe)
-		// Removing the last pipe
+		
+		// Removing first pipe
 		pipeCoords = pipeCoords[1:]
 	}
 }
@@ -251,7 +253,7 @@ func removeAndSpawnPipe(){
 func (g *Game) applyGravityAndVelOnBird(screen *ebiten.Image){
 	g.drawBird(screen)
 	g.yBird += gravity;
-	if g.mousePressed || g.spacePressed {
+	if g.mousePressed {
 		g.yBird -= upVelocity
 	}
 }
@@ -276,12 +278,15 @@ func drawBackBase(screen *ebiten.Image){
 	screen.DrawImage(backBaseImg, backBaseOp)
 }
 
-
+func drawScore(screen *ebiten.Image){
+	text.Draw(screen, "Score: "+fmt.Sprint(score), gameFont, screenWidth -180, 30, color.White)
+}
 
 func (g *Game) drawBird(screen *ebiten.Image){
 	// Bird options
 	birdOp := &ebiten.DrawImageOptions{}
-	// Bouding birds on screen up and down
+	// Bounding birds on screen up and down
+	// If bird touches either upper or lower boundary -  game over
 	if(g.yBird >= float32(birdLowY - birdHeight)){
 		g.yBird = float32(birdLowY - birdHeight)
 		setGameOver(screen)
@@ -305,11 +310,15 @@ func drawPipe(xCoord float32, yCoord float32, screen *ebiten.Image){
 	screen.DrawImage(pipeImg, pipe2Op)	
 }
 
+// Simple Random function to give random between range
 func randRange(min, max int) int{
+	// Without seed, GO return similar random values
 	rand.Seed(time.Now().UnixNano())
     return rand.Intn(max - min + 1) + min
 }
 
+
+// Images that will be used in game, same images can be used multiple times
 func initialiseImages(){
 	var backErr error
 	backgroundImg, _, backErr = ebitenutil.NewImageFromFile("./img/background.png")
@@ -342,6 +351,7 @@ func initialiseImages(){
 	}
 }
 
+// Adding font to use in game
 func initialiseFont(){
 	fontBytes, err := ioutil.ReadFile("./fonts/yoster.ttf")
 	if err != nil {
