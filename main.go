@@ -1,21 +1,24 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"image/color"
 	_ "image/png"
-	"io/ioutil"
 	"log"
 	"math"
 	"math/rand"
 	"time"
 
+	"github.com/deepakandgupta/skalappy-bird/objects/background"
+	"github.com/deepakandgupta/skalappy-bird/objects/basebackground"
+	"github.com/deepakandgupta/skalappy-bird/objects/bird"
+	"github.com/deepakandgupta/skalappy-bird/objects/gamefont"
+	"github.com/deepakandgupta/skalappy-bird/objects/pipe"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text"
 	"golang.org/x/image/font"
-	"golang.org/x/image/font/opentype"
 )
 
 // Forces on the Bird
@@ -44,8 +47,6 @@ var pipeSpeed float32 = 0;
 var pipeWidth int
 // var pipeHeight int
 
-var pipeDownHeight int
-
 // Using make had some strange effect check why
 var pipeCoords [][2]float32
 const distBwPipe = 250
@@ -54,54 +55,12 @@ var backBaseHeight int
 
 const pipeIndexForCollision = 0;
 
-
-// Variable references for all images
-var backgroundImg *ebiten.Image
-var birdImg *ebiten.Image
-var pipeImg *ebiten.Image
-var pipeDownImg *ebiten.Image
-var backBaseImg *ebiten.Image
-
-
-var gameFont font.Face
+var myGameFont font.Face
 
 const startGameText = "Press 'Space' to start\n 'Mouse Left' to play"
 const gameOverText = "             Game Over\n Press 'Space' to restart"
 
 var isGameStart bool
-
-func init() {
-	isGameStart = true
-
-	initialiseImages()
-	initialiseFont()
-
-	birdWidth = birdImg.Bounds().Max.X
-	birdHeight = birdImg.Bounds().Max.Y
-	
-	pipeWidth = pipeImg.Bounds().Max.X
-	// pipeHeight = pipeImg.Bounds().Max.Y
-
-	pipeDownHeight = pipeDownImg.Bounds().Max.Y
-
-	backBaseHeight = backBaseImg.Bounds().Max.Y
-
-	pipeCoords = pipeCoords[:0]
-	score = 0
-	// gerating random coordinates for pipes
-	for i := 0; i < pipeNum; i++{
-		yCoord := randRange(100, screenHeight - pipeGap)
-		var xCoord float32
-		if(i==0){
-			xCoord = 500
-		} else{
-			xCoord = pipeCoords[i-1][0] + distBwPipe
-		}
-		pc := [2]float32{xCoord, float32(yCoord)}
-		pipeCoords = append(pipeCoords, pc)
-	}
-
-}
 
 type Game struct{
 	spacePressed bool
@@ -110,60 +69,42 @@ type Game struct{
 	yBird float32
 }
 
+func init() {
+	isGameStart = true
+	
+	initialiseObjects()
+
+	initPipes()
+
+}
+
 func (g *Game) Update() error {
 	g.spacePressed =  inpututil.IsKeyJustPressed(ebiten.KeySpace)
 	g.mousePressed =  inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
-	for i := 0; i < len(pipeCoords); i++{
-		pipeCoords[i][0] -= pipeSpeed
-	}
-	
+
+	movePipes()
+	removeAndSpawnPipe();
+	incremenetScore()
 
 	return nil
 }
 
-func restartGame(){
-	isGameStart = false
-
-	pipeCoords = pipeCoords[:0]
-	score = 0
-	// gerating random coordinates for pipes
-	for i := 0; i < pipeNum; i++{
-		yCoord := randRange(100, screenHeight - pipeGap)
-		var xCoord float32
-		if(i==0){
-			xCoord = 500
-		} else{
-			xCoord = pipeCoords[i-1][0] + distBwPipe
-		}
-		pc := [2]float32{xCoord, float32(yCoord)}
-		pipeCoords = append(pipeCoords, pc)
-	}
-
-	gravity = 2.3
-	upVelocity  = 50
-	isBirdAlive = true
-	pipeSpeed = 1.5
-}
-
 func (g *Game) Draw(screen *ebiten.Image) {
-	drawBackground(screen)
+	background.Draw(screen)
 	for _, coord  := range pipeCoords {
-		drawPipe(coord[0], coord[1], screen)
+		pipe.Draw(coord[0], coord[1], pipeGap, screen)
 	}
 
-	drawBackBase(screen)
-
+	basebackground.Draw( float64(screenHeight), screen)
 	g.applyGravityAndVelOnBird(screen)
-	removeAndSpawnPipe();
 	g.checkBirdCollision(screen);
-	incremenetScore()
 	drawScore(screen);
 
 	if(!isBirdAlive && g.spacePressed){
 		g.yBird = screenWidth/2
 		restartGame()
 		} else if(!isBirdAlive && isGameStart) {
-			text.Draw(screen, startGameText, gameFont, 100, screenHeight/2, color.White)
+			text.Draw(screen, startGameText, myGameFont, 100, screenHeight/2, color.White)
 			g.yBird = screenWidth/2
 	}
 
@@ -183,6 +124,40 @@ func main() {
 	}
 }
 
+func initPipes(){
+	pipeCoords = pipeCoords[:0]
+	// gerating random coordinates for pipes
+	for i := 0; i < pipeNum; i++{
+		yCoord := randRange(100, screenHeight - pipeGap)
+		var xCoord float32
+		if(i==0){
+			xCoord = 500
+		} else{
+			xCoord = pipeCoords[i-1][0] + distBwPipe
+		}
+		pc := [2]float32{xCoord, float32(yCoord)}
+		pipeCoords = append(pipeCoords, pc)
+	}
+}
+
+func movePipes(){
+	for i := 0; i < len(pipeCoords); i++{
+		pipeCoords[i][0] -= pipeSpeed
+	}
+}
+
+func restartGame(){
+	isGameStart = false
+	score = 0
+
+	initPipes()
+
+	gravity = 2.3
+	upVelocity  = 50
+	isBirdAlive = true
+	pipeSpeed = 1.5
+}
+
 func incremenetScore(){
 	birdLeft :=  float32(xBird)
 	
@@ -198,6 +173,13 @@ func incremenetScore(){
 // We only need to check the first pipe for collision
 // The bird does not move left/right
 func (g *Game) checkBirdCollision(screen *ebiten.Image){
+	if(g.yBird >= float32(birdLowY - birdHeight)){
+		g.yBird = float32(birdLowY - birdHeight)
+		setGameOver(screen)
+	} else if(g.yBird <=0){
+		g.yBird = 0;
+		setGameOver(screen)
+	}
 	if(checkXCoordPipeBird() && !checkYCoordPipeBird(g.yBird)){
 		setGameOver(screen)
 	}
@@ -228,7 +210,7 @@ func checkYCoordPipeBird(yBird float32) bool{
 
 // On game over, remove all control but still draw the current state
 func setGameOver(screen *ebiten.Image){
-	text.Draw(screen, gameOverText, gameFont, 100, screenHeight/2, color.White)
+	text.Draw(screen, gameOverText, myGameFont, 100, screenHeight/2, color.White)
 	gravity = 0
 	pipeSpeed = 0	
 	upVelocity = 0
@@ -251,63 +233,15 @@ func removeAndSpawnPipe(){
 }
 
 func (g *Game) applyGravityAndVelOnBird(screen *ebiten.Image){
-	g.drawBird(screen)
+	bird.Draw(float64(xBird), g.yBird, screen)
 	g.yBird += gravity;
 	if g.mousePressed {
 		g.yBird -= upVelocity
 	}
 }
 
-func drawBackground(screen *ebiten.Image){
-	// backOp.GeoM.Scale(1, 1)
-
-	backOp := &ebiten.DrawImageOptions{}
-	backOp.GeoM.Translate(0, 0)
-	screen.DrawImage(backgroundImg, backOp)
-
-	var backWidth = backgroundImg.Bounds().Max.X
-	
-	backOp2 := &ebiten.DrawImageOptions{}
-	backOp2.GeoM.Translate(float64(backWidth), 0)
-	screen.DrawImage(backgroundImg, backOp2)
-}
-
-func drawBackBase(screen *ebiten.Image){
-	backBaseOp := &ebiten.DrawImageOptions{}
-	backBaseOp.GeoM.Translate(0, float64(screenHeight))
-	screen.DrawImage(backBaseImg, backBaseOp)
-}
-
 func drawScore(screen *ebiten.Image){
-	text.Draw(screen, "Score: "+fmt.Sprint(score), gameFont, screenWidth -180, 30, color.White)
-}
-
-func (g *Game) drawBird(screen *ebiten.Image){
-	// Bird options
-	birdOp := &ebiten.DrawImageOptions{}
-	// Bounding birds on screen up and down
-	// If bird touches either upper or lower boundary -  game over
-	if(g.yBird >= float32(birdLowY - birdHeight)){
-		g.yBird = float32(birdLowY - birdHeight)
-		setGameOver(screen)
-	} else if(g.yBird <=0){
-		g.yBird = 0;
-		setGameOver(screen)
-	}
-	birdOp.GeoM.Translate(xBird, float64(g.yBird))
-	screen.DrawImage(birdImg, birdOp)	
-}
-
-func drawPipe(xCoord float32, yCoord float32, screen *ebiten.Image){
-	// fmt.Println(xCoord)
-
-	pipeOp := &ebiten.DrawImageOptions{}
-	pipeOp.GeoM.Translate(float64(xCoord), float64(yCoord - float32(pipeDownHeight)))
-	screen.DrawImage(pipeDownImg, pipeOp)	
-	
-	pipe2Op := &ebiten.DrawImageOptions{}
-	pipe2Op.GeoM.Translate(float64(xCoord), float64(yCoord + float32(pipeGap)))
-	screen.DrawImage(pipeImg, pipe2Op)	
+	text.Draw(screen, "Score: "+fmt.Sprint(score), myGameFont, screenWidth -180, 30, color.White)
 }
 
 // Simple Random function to give random between range
@@ -319,58 +253,11 @@ func randRange(min, max int) int{
 
 
 // Images that will be used in game, same images can be used multiple times
-func initialiseImages(){
-	var backErr error
-	backgroundImg, _, backErr = ebitenutil.NewImageFromFile("./img/background.png")
-	if backErr != nil {
-		log.Fatal(backErr)
-	}
-
-	var birdErr error
-	birdImg, _, birdErr = ebitenutil.NewImageFromFile("./img/bird.png")
-	if birdErr != nil {
-		log.Fatal(birdErr)
-	}
-
-	var pipeErr error
-	pipeImg, _, pipeErr = ebitenutil.NewImageFromFile("./img/pipe.png")
-	if pipeErr != nil {
-		log.Fatal(pipeErr)
-	}
-
-	var pipeDownErr error
-	pipeDownImg, _, pipeDownErr = ebitenutil.NewImageFromFile("./img/pipe-down.png")
-	if pipeDownErr != nil {
-		log.Fatal(pipeDownErr)
-	}
-
-	var backBaseErr error
-	backBaseImg, _, backBaseErr = ebitenutil.NewImageFromFile("./img/back-base.png")
-	if backBaseErr != nil {
-		log.Fatal(backBaseErr)
-	}
+func initialiseObjects(){
+	background.Init();
+	myGameFont = gamefont.Init()
+	birdWidth, birdHeight = bird.Init()
+	pipeWidth = pipe.Init();
+	backBaseHeight = basebackground.Init()
 }
 
-// Adding font to use in game
-func initialiseFont(){
-	fontBytes, err := ioutil.ReadFile("./fonts/yoster.ttf")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-
-	tt, err := opentype.Parse(fontBytes)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	const dpi = 60
-	gameFont, err = opentype.NewFace(tt, &opentype.FaceOptions{
-		Size:    32,
-		DPI:     dpi,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-}
